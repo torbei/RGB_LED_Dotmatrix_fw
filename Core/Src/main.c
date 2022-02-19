@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "ledmatrix.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -85,7 +85,8 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
-
+  ledmatrix_init();
+  ledmatrix_oe(LEDMATRIX_OE_ON);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -95,6 +96,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+//	  for (uint8_t i = 0; i < 8; i++) {
+//		  ledmatrix_pixel(i, i, 0);
+//		  HAL_Delay(100);
+//	  }
+		*(__IO uint8_t *)&SPI1->DR = 0xAB;
+		HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
