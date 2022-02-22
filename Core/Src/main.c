@@ -96,12 +96,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	  for (uint8_t i = 0; i < 8; i++) {
-//		  ledmatrix_pixel(i, i, 0);
-//		  HAL_Delay(100);
-//	  }
-		*(__IO uint8_t *)&SPI1->DR = 0xAB;
-		HAL_Delay(100);
+	  ledmatrix_clear();
+	  HAL_Delay(100);
+	  for (uint8_t i = 0; i < 8; i++) {
+		  ledmatrix_pixel(i, i, 0);
+		  HAL_Delay(100);
+	  }
   }
   /* USER CODE END 3 */
 }

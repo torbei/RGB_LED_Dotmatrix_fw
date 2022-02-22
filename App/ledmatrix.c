@@ -9,6 +9,8 @@
 
 uint8_t dotmatrix_framebuffer[LED_MODULE_ROWS][LED_MODULE_RGB * LED_MODULE_COUNT];
 
+volatile uint8_t multiplex_index = 0;
+
 void ledmatrix_init(void) {
 	// variables init
 	multiplex_index = 0;
@@ -19,10 +21,10 @@ void ledmatrix_init(void) {
 	GPIOA->MODER |= (0b01 << GPIO_MODER_MODER0_Pos) | (0b01 << GPIO_MODER_MODER1_Pos) | (0b01 << GPIO_MODER_MODER2_Pos);
 	// IO for SPI
 	// SDI / CLK - alternate function
-	GPIOA->MODER |= (0b10 << GPIO_MODER_MODER4_Pos) | (0b10 << GPIO_MODER_MODER5_Pos);
+	GPIOA->MODER |= (0b10 << GPIO_MODER_MODER5_Pos) | (0b10 << GPIO_MODER_MODER7_Pos);
 	// alternate function set to AF0 (SPI) after reset
 	// OE / LE - output
-	GPIOA->MODER |= (0b01 << GPIO_MODER_MODER6_Pos) | (0b01 << GPIO_MODER_MODER7_Pos);
+	GPIOA->MODER |= (0b01 << GPIO_MODER_MODER6_Pos) | (0b01 << GPIO_MODER_MODER4_Pos);
 
 	// SPI Config
 	RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
@@ -36,31 +38,31 @@ void ledmatrix_init(void) {
 	DMA1_Channel3->CPAR = (uint32_t)&(SPI1->DR);
 	DMA1_Channel3->CNDTR = LED_MODULE_RGB * LED_MODULE_COUNT;
 	DMA1_Channel3->CMAR = (uint32_t)&dotmatrix_framebuffer[multiplex_index][0];
-	NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+	NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
 
 	// Timer Config for multiplexing
 	// TIM CLK = 48 MHz / (47 + 1) / (999 + 1) = 1kHz
 	RCC->APB1ENR |= RCC_APB1ENR_TIM14EN;
-	TIM14->PSC = 470;
-	TIM14->ARR = 9999;
+	TIM14->PSC = 47;
+	TIM14->ARR = 999;
 	TIM14->DIER |= TIM_DIER_UIE;	// enable update interrupt
 	NVIC_EnableIRQ(TIM14_IRQn);
-	//TIM14->CR1 |= TIM_CR1_CEN;
+	TIM14->CR1 |= TIM_CR1_CEN;
 }
 
 void TIM14_IRQHandler(void) {
 	TIM14->SR &= ~TIM_SR_UIF;
 	ledmatrix_oe(LEDMATRIX_OE_OFF);
 	ledmatrix_enable_row(multiplex_index);
-	DMA1_Channel3->CNDTR = LED_MODULE_RGB * LED_MODULE_COUNT;
 	DMA1_Channel3->CMAR = (uint32_t)&dotmatrix_framebuffer[multiplex_index][0];
 	DMA1_Channel3->CPAR = (uint32_t)&(SPI1->DR);
+	DMA1_Channel3->CNDTR = LED_MODULE_RGB * LED_MODULE_COUNT;
 	DMA1_Channel3->CCR |= DMA_CCR_EN;
 	multiplex_index++;
 	if (multiplex_index >= LED_MODULE_ROWS) {multiplex_index = 0;};
 }
 
-void DMA1_Channel3_IRQHandler(void) {
+void DMA1_Channel2_3_IRQHandler(void) {
 	if (DMA1->ISR & DMA_ISR_TCIF3) {
 		DMA1->IFCR |= DMA_IFCR_CTCIF3;
 		DMA1_Channel3->CCR &= ~DMA_CCR_EN;
@@ -70,21 +72,31 @@ void DMA1_Channel3_IRQHandler(void) {
 	}
 }
 
-void ledmatrix_oe(uint8_t enable) {
-	GPIOA->BSRR = enable ? GPIO_BSRR_BR_6 : GPIO_BSRR_BS_6;
+inline void ledmatrix_oe(uint8_t enable) {
+	GPIOA->BSRR = enable ? GPIO_BSRR_BS_6 : GPIO_BSRR_BR_6;
 }
 
-void ledmatrix_latch(void) {
-	GPIOA->BSRR = GPIO_BSRR_BR_7;
-	GPIOA->BSRR = GPIO_BSRR_BS_7;
+inline void ledmatrix_latch(void) {
+	GPIOA->BSRR = GPIO_BSRR_BS_4;
+	GPIOA->BSRR = GPIO_BSRR_BR_4;
 }
 
-void ledmatrix_enable_row(uint8_t index) {
+inline void ledmatrix_enable_row(uint8_t index) {
 	GPIOA->BSRR |= (index & 0x1) ? GPIO_BSRR_BS_0 : GPIO_BSRR_BR_0;
 	GPIOA->BSRR |= (index & 0x2) ? GPIO_BSRR_BS_1 : GPIO_BSRR_BR_1;
 	GPIOA->BSRR |= (index & 0x4) ? GPIO_BSRR_BS_2 : GPIO_BSRR_BR_2;
 }
 
+void ledmatrix_clear(void) {
+	for (uint8_t y = 0; y < LED_MODULE_ROWS; y++) {
+		for (uint8_t x = 0; x < LED_MODULE_RGB * LED_MODULE_COUNT; x++) {
+			dotmatrix_framebuffer[y][x] = 0x00;
+		}
+	}
+}
+
 void ledmatrix_pixel(uint8_t x, uint8_t y, uint8_t color) {
 	dotmatrix_framebuffer[y][x / 8] = (1 << (x % 8));
+	dotmatrix_framebuffer[y][x / 8 + 1] = (1 << (x % 8));
+	dotmatrix_framebuffer[y][x / 8 + 2] = (1 << (x % 8));
 }
